@@ -1,0 +1,260 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ product.name }} - CampusKart{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'index' %}">Home</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'product_list' %}">Products</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ product.name }}</li>
+        </ol>
+    </nav>
+
+    <div class="row">
+        <!-- Product Image -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <img src="{{ product.image.url }}" class="card-img-top" alt="{{ product.name }}" style="max-height: 400px; object-fit: contain;">
+                {% if product.is_sold %}
+                    <div class="position-absolute top-0 start-0 bg-danger text-white p-3 m-3 rounded">
+                        <h4 class="mb-0"><i class="fas fa-check-circle"></i> SOLD</h4>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Product Details -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h2 class="card-title">{{ product.name }}</h2>
+                    
+                    <div class="mb-3">
+                        <span class="badge bg-primary">{{ product.category.name }}</span>
+                        <span class="badge bg-info">{{ product.get_condition_display }}</span>
+                        {% if product.is_sold %}
+                            <span class="badge bg-danger">Sold</span>
+                        {% else %}
+                            <span class="badge bg-success">Available</span>
+                        {% endif %}
+                    </div>
+
+                    <h3 class="text-primary mb-3">${{ product.price }}</h3>
+                    
+                    <p class="card-text">{{ product.description }}</p>
+                    
+                    <hr>
+                    
+                    <!-- Seller Information -->
+                    <div class="seller-info mb-3 p-3 bg-light rounded">
+                        <h5><i class="fas fa-user-circle"></i> Seller Information</h5>
+                        <p class="mb-1">
+                            <strong>{{ product.seller.username }}</strong>
+                        </p>
+                        <p class="mb-1">
+                            <i class="fas fa-phone"></i> {{ product.seller.profile.phone_number }}
+                        </p>
+                        <p class="mb-1">
+                            <i class="fas fa-graduation-cap"></i> {{ product.seller.profile.college_name }}
+                        </p>
+                        <p class="mb-0">
+                            <i class="fas fa-calendar"></i> Class of {{ product.seller.profile.graduation_year }}
+                        </p>
+                    </div>
+
+                    <!-- Buy/Action Buttons -->
+                    {% if user.is_authenticated %}
+                        {% if user == product.seller %}
+                            <!-- Seller View - Edit/Delete buttons -->
+                            <div class="d-grid gap-2">
+                                <a href="{% url 'edit_product' product.id %}" class="btn btn-warning btn-lg">
+                                    <i class="fas fa-edit"></i> Edit Product
+                                </a>
+                                <button type="button" class="btn btn-danger btn-lg" data-bs-toggle="modal" data-bs-target="#deleteModal">
+                                    <i class="fas fa-trash"></i> Delete Product
+                                </button>
+                                {% if product.is_sold %}
+                                    <a href="{% url 'my_products' %}" class="btn btn-secondary btn-lg">
+                                        <i class="fas fa-arrow-left"></i> Back to My Products
+                                    </a>
+                                {% endif %}
+                            </div>
+                        {% else %}
+                            <!-- Buyer View - Buy/Request buttons -->
+                            {% if product.is_sold %}
+                                <div class="alert alert-danger text-center">
+                                    <i class="fas fa-times-circle fa-2x mb-3"></i>
+                                    <h4>This item has been sold</h4>
+                                    <p>Check out other similar items available.</p>
+                                    <a href="{% url 'product_list' %}?category={{ product.category.id }}" class="btn btn-primary">
+                                        Browse Similar Items
+                                    </a>
+                                </div>
+                            {% else %}
+                                {% if has_requested %}
+                                    <div class="alert alert-info text-center">
+                                        <i class="fas fa-clock fa-2x mb-3"></i>
+                                        <h4>Request Pending</h4>
+                                        <p>You have already requested this item. Please wait for the seller's response.</p>
+                                        <a href="{% url 'dashboard' %}" class="btn btn-primary">
+                                            Check Request Status
+                                        </a>
+                                    </div>
+                                {% else %}
+                                    <!-- Buy Now Button -->
+                                    <button type="button" class="btn btn-success btn-lg w-100 mb-3" data-bs-toggle="modal" data-bs-target="#buyModal">
+                                        <i class="fas fa-shopping-cart"></i> Buy Now
+                                    </button>
+                                    
+                                    <!-- Request to Buy Button -->
+                                    <button type="button" class="btn btn-primary btn-lg w-100" data-bs-toggle="modal" data-bs-target="#requestModal">
+                                        <i class="fas fa-hand-paper"></i> Request to Buy
+                                    </button>
+                                {% endif %}
+                            {% endif %}
+                        {% endif %}
+                    {% else %}
+                        <!-- Not logged in -->
+                        <div class="alert alert-info text-center">
+                            <i class="fas fa-info-circle fa-2x mb-3"></i>
+                            <h4>Login to Buy</h4>
+                            <p>Please login or register to purchase this item.</p>
+                            <a href="{% url 'login' %}?next={{ request.path }}" class="btn btn-primary">
+                                Login
+                            </a>
+                            <a href="{% url 'register' %}" class="btn btn-outline-primary">
+                                Register
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Buy Modal - Direct Purchase -->
+<div class="modal fade" id="buyModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="fas fa-shopping-cart"></i> Confirm Purchase</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'buy_product' product.id %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="text-center mb-4">
+                        <i class="fas fa-check-circle fa-4x text-success"></i>
+                    </div>
+                    <h4 class="text-center mb-3">Confirm Your Purchase</h4>
+                    
+                    <div class="card bg-light mb-3">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-4">
+                                    <img src="{{ product.image.url }}" class="img-fluid rounded" alt="{{ product.name }}">
+                                </div>
+                                <div class="col-8">
+                                    <h5>{{ product.name }}</h5>
+                                    <p class="mb-1">Price: <strong>${{ product.price }}</strong></p>
+                                    <p class="mb-0">Seller: {{ product.seller.username }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Important:</strong> By confirming this purchase, you agree to meet the seller in person to complete the transaction. No online payment is processed through this platform.
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="buy_message" class="form-label">Message to Seller (Optional)</label>
+                        <textarea name="message" class="form-control" id="buy_message" rows="2" placeholder="Add a message to the seller..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-check"></i> Confirm Purchase
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Request Modal -->
+<div class="modal fade" id="requestModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-hand-paper"></i> Request to Buy</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'request_product' product.id %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <p>You are requesting to purchase: <strong>{{ product.name }}</strong></p>
+                    <p>Price: <strong>${{ product.price }}</strong></p>
+                    
+                    <div class="mb-3">
+                        <label for="request_message" class="form-label">Message to Seller (Optional)</label>
+                        <textarea name="message" class="form-control" id="request_message" rows="3" placeholder="Introduce yourself and ask any questions about the item..."></textarea>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        The seller will be notified and can accept or reject your request.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-paper-plane"></i> Send Request
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="fas fa-trash"></i> Delete Product</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete "{{ product.name }}"?</p>
+                <p class="text-danger"><strong>This action cannot be undone!</strong></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form method="post" action="{% url 'delete_product' product.id %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash"></i> Delete Permanently
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.seller-info {
+    border-left: 4px solid #007bff;
+}
+.seller-info i {
+    width: 25px;
+    color: #007bff;
+}
+</style>
+{% endblock %}
